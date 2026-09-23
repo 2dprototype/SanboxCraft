@@ -1,32 +1,49 @@
 local Vegetation = {}
 Vegetation.list = {}
-Vegetation.healRate = 0.15  -- Heal speed (0.15 per second = ~6.7 sec from full burn to green)
+Vegetation.healRate = 4.0  -- Heal speed (HP per second when surviving)
+Vegetation.destroyed = false
+Vegetation.totalCreated = 0
 
 -- Initialize or clear vegetation data
 function Vegetation.init()
     Vegetation.list = {}
+    Vegetation.destroyed = false
+    Vegetation.totalCreated = 0
+end
+
+function Vegetation.isDestroyed()
+    return Vegetation.destroyed
+end
+
+function Vegetation.getCount()
+    return #Vegetation.list
 end
 
 -- Create an individual grass tuft attached to a specific Box2D body
 function Vegetation.createGrass(body, localX, localY, w, h, localAngle)
     if not body or body:isDestroyed() then return nil end
 
-    -- Generate a realistic organic blend for Healthy Grass (Deep Forest to Olive Green)
-    local hR = 0.12 + math.random() * 0.10
-    local hG = 0.28 + math.random() * 0.18
-    local hB = 0.10 + math.random() * 0.08
+    -- Generate a realistic organic blend for Healthy Grass (Vibrant lush green)
+    local hR = 0.10 + math.random() * 0.08
+    local hG = 0.65 + math.random() * 0.15
+    local hB = 0.12 + math.random() * 0.06
     
-    -- Generate a realistic organic blend for Dead/Burnt Grass (Dark Ochre/Mustard/Brown)
-    local dR = 0.42 + math.random() * 0.15
-    local dG = 0.35 + math.random() * 0.12
-    local dB = 0.12 + math.random() * 0.06
+    -- Generate a realistic organic blend for Decayed/Yellow Grass (Dry straw/yellow)
+    local dR = 0.85 + math.random() * 0.10
+    local dG = 0.74 + math.random() * 0.10
+    local dB = 0.15 + math.random() * 0.06
     
+    local maxHp = 100
     local grass = {
         type = "grass",
         body = body,
         localX = localX or 0,
         localY = localY or 0,
         localAngle = localAngle or 0,
+        
+        -- Health & state
+        health = maxHp,
+        maxHealth = maxHp,
         
         -- Absolute coordinates synchronized dynamically during updates
         x = 0, y = 0,
@@ -47,9 +64,7 @@ function Vegetation.createGrass(body, localX, localY, w, h, localAngle)
         windGustFreq = 2.5 + math.random() * 2.0,
         windStrength = 0.02 + math.random() * 0.03,
         
-        -- Color Shift: 0 = Healthy Green, 1 = Dead/Burnt Yellow
-        -- Natural variance: Some grass naturally spawns a little dry/yellow (0.0 to 0.25)
-        burnFactor = math.random() * 0.25,
+        -- Colors: 100% health = healthyColor (green), 0% health = deadColor (yellow)
         healthyColor = { hR, hG, hB },
         deadColor = { dR, dG, dB },
         
@@ -76,6 +91,8 @@ function Vegetation.createGrass(body, localX, localY, w, h, localAngle)
     -- Initial absolute coordinate lock
     grass.x, grass.y = body:getWorldPoint(grass.localX, grass.localY)
     table.insert(Vegetation.list, grass)
+    Vegetation.totalCreated = Vegetation.totalCreated + 1
+    Vegetation.destroyed = false
     return grass
 end
 
@@ -182,11 +199,21 @@ end
 -- Update loop simulating ambient environment physics, healing, and real-time synchronization
 function Vegetation.update(dt, entitiesList)
     local time = love.timer.getTime()
+    local EffectsSystem = package.loaded["effects"]
+    local hadGrass = (#Vegetation.list > 0)
     
     for i = #Vegetation.list, 1, -1 do
         local item = Vegetation.list[i]
         
-        if not item.body or item.body:isDestroyed() then
+        -- If parent body destroyed or specific grass health reaches 0, specific grass dies
+        if not item.body or item.body:isDestroyed() or item.health <= 0 then
+            if item.health and item.health <= 0 and EffectsSystem and EffectsSystem.createParticle then
+                for p = 1, 3 do
+                    local vx = (math.random() - 0.5) * 50
+                    local vy = -(math.random() * 40 + 15)
+                    EffectsSystem.createParticle(item.x, item.y, vx, vy, 20, 200, 1.5 + math.random(), "grassDebris")
+                end
+            end
             table.remove(Vegetation.list, i)
         else
             item.x, item.y = item.body:getWorldPoint(item.localX, item.localY)
@@ -232,19 +259,28 @@ function Vegetation.update(dt, entitiesList)
                 end
             end
             
-            -- 5. Healing: slowly turn burnt grass back to green over time
-            if item.burnFactor > 0 then
-                item.burnFactor = math.max(0, item.burnFactor - Vegetation.healRate * dt)
+            -- 5. Healing: slowly recover health back to full green over time if still alive
+            if item.health < item.maxHealth then
+                item.health = math.min(item.maxHealth, item.health + Vegetation.healRate * dt)
             end
         end
     end
+    
+    -- If all grass dies, the vegetation is destroyed
+    if hadGrass and #Vegetation.list == 0 and not Vegetation.destroyed then
+        Vegetation.destroyed = true
+        print("All vegetation has been destroyed!")
+    end
 end
 
--- Process high-impact explosions and trigger color mutations
-function Vegetation.applyExplosion(cx, cy, radius, force)
+-- Process high-impact explosions and trigger damage/color mutations
+function Vegetation.applyExplosion(cx, cy, radius, force, damage)
     local EffectsSystem = package.loaded["effects"]
+    local hadGrass = (#Vegetation.list > 0)
+    local baseDmg = (damage and damage > 0) and damage or ((force or 500) * 0.5)
     
-    for _, item in ipairs(Vegetation.list) do
+    for i = #Vegetation.list, 1, -1 do
+        local item = Vegetation.list[i]
         local dx = item.x - cx
         local dy = (item.y - item.h / 2) - cy
         local dist = math.sqrt(dx * dx + dy * dy)
@@ -252,19 +288,20 @@ function Vegetation.applyExplosion(cx, cy, radius, force)
         if dist < radius then
             local pushDir = dx >= 0 and 1 or -1
             local falloff = 1 - (dist / radius)
-            local explosionForce = pushDir * falloff * (force * 0.09)
+            local explosionForce = pushDir * falloff * ((force or 1000) * 0.09)
             
             -- Flatten instantly from shockwave energy
-            item.angle = item.angle + pushDir * falloff * 2.0
+            item.angle = item.angle + pushDir * falloff * 2.5
             item.angularVelocity = item.angularVelocity + explosionForce * 5.0
             
-            -- Shift color towards burnt yellow/brown depending on proximity
-            item.burnFactor = math.min(1, item.burnFactor + falloff * 0.85)
+            -- Damage the grass based on explosive damage, force, and distance falloff
+            local explosionDmg = math.max(25 * falloff, (baseDmg * 0.35 + (force or 100) * 0.15) * falloff)
+            item.health = item.health - explosionDmg
             
+            -- Dirt/debris kicking up from the roots
             if EffectsSystem and EffectsSystem.createParticle then
-                -- Add dirt/debris kicking up from the roots
                 local particleCount = math.floor(falloff * 3) + 1
-                for i = 1, particleCount do
+                for p = 1, particleCount do
                     local px = item.x + (math.random() - 0.5) * 10
                     local py = item.y - math.random() * (item.h * 0.5)
                     local vx = (math.random() - 0.5) * 50 + (pushDir * falloff * 90)
@@ -272,7 +309,27 @@ function Vegetation.applyExplosion(cx, cy, radius, force)
                     EffectsSystem.createParticle(px, py, vx, vy, 35, 120, 1.5 + math.random(2), "debris")
                 end
             end
+            
+            -- If specific grass reaches 0 health, it dies immediately
+            if item.health <= 0 then
+                if EffectsSystem and EffectsSystem.createParticle then
+                    for p = 1, 4 do
+                        local px = item.x + (math.random() - 0.5) * 8
+                        local py = item.y - math.random() * (item.h * 0.6)
+                        local vx = (math.random() - 0.5) * 80 + (pushDir * falloff * 100)
+                        local vy = -(math.random() * 60 + 30)
+                        EffectsSystem.createParticle(px, py, vx, vy, 25, 180, 2 + math.random(), "grassDebris")
+                    end
+                end
+                table.remove(Vegetation.list, i)
+            end
         end
+    end
+    
+    -- Check if all grass died from this explosion
+    if hadGrass and #Vegetation.list == 0 and not Vegetation.destroyed then
+        Vegetation.destroyed = true
+        print("All vegetation has been destroyed by explosion!")
     end
 end
 
@@ -281,15 +338,16 @@ local Entities = package.loaded["entities"] or require("entities")
 if Entities and type(Entities.explode) == "function" then
     local originalExplode = Entities.explode
     Entities.explode = function(e)
-        local cx, cy, radius, force
+        local cx, cy, radius, force, damage
         if e and e.body and not e.body:isDestroyed() then
             cx, cy = e.body:getPosition()
             radius = e.explosionRadius or 100
             force = e.explosionForce or 1000
+            damage = e.explosionDamage or 200
         end
         originalExplode(e)
         if cx and cy then
-            Vegetation.applyExplosion(cx, cy, radius, force)
+            Vegetation.applyExplosion(cx, cy, radius, force, damage)
         end
     end
 end
@@ -299,8 +357,8 @@ function Vegetation.draw()
     local segments = 4 -- Keeps performance solid while allowing smooth curving
     
     for _, item in ipairs(Vegetation.list) do
-        -- CRITICAL FIX: Skip any grass attached to a destroyed body
-        if not item.body or item.body:isDestroyed() then
+        -- CRITICAL FIX: Skip any grass attached to a destroyed body or with <= 0 health
+        if not item.body or item.body:isDestroyed() or (item.health and item.health <= 0) then
             goto continue
         end
         
@@ -311,10 +369,17 @@ function Vegetation.draw()
         local bodyAngle = item.body:getAngle()
         love.graphics.rotate(bodyAngle + item.localAngle)
         
-        -- Interpolate base color state (Healthy Green -> Burnt Yellow)
-        local bR = item.healthyColor[1] * (1 - item.burnFactor) + item.deadColor[1] * item.burnFactor
-        local bG = item.healthyColor[2] * (1 - item.burnFactor) + item.deadColor[2] * item.burnFactor
-        local bB = item.healthyColor[3] * (1 - item.burnFactor) + item.deadColor[3] * item.burnFactor
+        -- Health decay: 100% health = Healthy Green (decay=0), 0% health = Decayed Yellow (decay=1)
+        local healthRatio = math.max(0, math.min(1, item.health / item.maxHealth))
+        local decay = 1 - healthRatio
+        
+        -- Base color smoothly transitions from green to yellow as health decays
+        local bR = item.healthyColor[1] * (1 - decay) + item.deadColor[1] * decay
+        local bG = item.healthyColor[2] * (1 - decay) + item.deadColor[2] * decay
+        local bB = item.healthyColor[3] * (1 - decay) + item.deadColor[3] * decay
+        
+        -- Decayed yellow grass wilts and droops slightly
+        local wilt = decay * 0.28
         
         -- Draw each procedural blade in the tuft
         for _, blade in ipairs(item.blades) do
@@ -329,16 +394,16 @@ function Vegetation.draw()
             
             for s = 1, segments do
                 -- Root-to-Tip Gradient: 
-                -- Roots (s=1) are heavily shadowed (40% brightness).
-                -- Tips (s=segments) are bright and slightly more yellow.
+                -- Roots (s=1) are shadowed.
+                -- Tips (s=segments) are slightly brighter.
                 local heightRatio = s / segments
-                local depthShadow = 0.4 + (0.6 * heightRatio)
+                local depthShadow = 0.45 + (0.55 * heightRatio)
                 
-                -- Add a slight yellow tint to the very tips of the grass for realism
-                local tipYellow = (heightRatio > 0.7) and (0.1 * heightRatio) or 0
+                -- Add a slight yellow-drying tint to the tips when decaying
+                local tipYellow = (heightRatio > 0.6) and (0.15 * decay * heightRatio) or 0
                 
                 local fR = math.min(1, bR * depthShadow * blade.colorMod + tipYellow)
-                local fG = math.min(1, bG * depthShadow * blade.colorMod + tipYellow)
+                local fG = math.min(1, bG * depthShadow * blade.colorMod + tipYellow * 0.8)
                 local fB = math.min(1, bB * depthShadow * blade.colorMod)
                 
                 love.graphics.setColor(fR, fG, fB)
@@ -347,8 +412,8 @@ function Vegetation.draw()
                 local currentW = bladeWidth * ((segments - s + 1) / segments)
                 local nextW = bladeWidth * ((segments - s) / segments)
                 
-                -- Distribute physical bending + natural static curve along segments
-                love.graphics.rotate((item.angle / segments) + (blade.curve / segments))
+                -- Distribute physical bending + natural static curve + wilt along segments
+                love.graphics.rotate((item.angle / segments) + ((blade.curve + wilt) / segments))
                 
                 -- Draw the segment polygon
                 love.graphics.polygon("fill", 

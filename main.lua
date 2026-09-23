@@ -595,6 +595,8 @@ function drawUI()
         local count = 0 for _ in pairs(RopeSystem.collection) do count = count + 1 end
         love.graphics.print("Active Ropes: " .. count, 10, 150)
         love.graphics.print("Total Entities: " .. #Entities.list, 10, 170)
+        local vegStatus = Vegetation.isDestroyed() and "DESTROYED" or (#Vegetation.list .. " tufts")
+        love.graphics.print("Vegetation: " .. vegStatus, 10, 190)
     end
     
     love.graphics.print("Controls:", love.graphics.getWidth() - 220, 10)

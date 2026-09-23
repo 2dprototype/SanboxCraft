@@ -182,6 +182,12 @@ function EffectsSystem.draw()
         elseif p.type == "debris" then
             love.graphics.setColor(0.3, 0.2, 0.1, alpha)
             love.graphics.rectangle("fill", p.x - p.size/2, p.y - p.size/2, p.size, p.size)
+        elseif p.type == "grassDebris" then
+            local r = 0.70 + math.random() * 0.15
+            local g = 0.65 + math.random() * 0.15
+            local b = 0.12
+            love.graphics.setColor(r, g, b, alpha * 0.9)
+            love.graphics.rectangle("fill", p.x - p.size/2, p.y - p.size, p.size, p.size * 2)
         elseif p.type == "water" then
             local blue = 0.5 + math.random() * 0.5
             love.graphics.setColor(0.2, 0.5, blue, alpha * 0.8)
