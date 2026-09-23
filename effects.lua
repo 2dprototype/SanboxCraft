@@ -188,6 +188,15 @@ function EffectsSystem.draw()
             local b = 0.12
             love.graphics.setColor(r, g, b, alpha * 0.9)
             love.graphics.rectangle("fill", p.x - p.size/2, p.y - p.size, p.size, p.size * 2)
+        elseif p.type == "flame" then
+            local t = math.min(1, p.life / 20)
+            local r = 1.0
+            local g = math.max(0.1, math.min(1.0, t * 1.3))
+            local b = math.max(0.0, math.min(0.8, (t - 0.4) * 1.5))
+            love.graphics.setColor(r, g, b, alpha * 0.9)
+        elseif p.type == "steam" then
+            local shade = 0.85 + math.random() * 0.15
+            love.graphics.setColor(shade, shade, shade, alpha * 0.4)
         elseif p.type == "water" then
             local blue = 0.5 + math.random() * 0.5
             love.graphics.setColor(0.2, 0.5, blue, alpha * 0.8)

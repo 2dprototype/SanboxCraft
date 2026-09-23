@@ -9,6 +9,7 @@ local Water = require("water")
 local Whale = require("whale")
 local b2debugDraw = require("b2debugDraw")
 local Vegetation = require("vegetation")
+local Fire = require("fire")
 
 local game = { debugMode = false, state = "playing" }
 local debugDrawEnabled = false
@@ -17,11 +18,13 @@ local cameraInstructions = {
     "Wheel or -/+: Zoom", "WASD: Free Move", "Backspace: Reset Zoom",
     "F5: Toggle Debug Mode", "SPACE: Grab/Release Object",
     "E: Grab Enemy", "SHIFT: Connect two objects & detach",
-    "G/T/N/R: Grenade/TNT/Nuke/Radium"
+    "G/T/N/R: Grenade/TNT/Nuke/Radium",
+    "F: Put / Intensify Fire"
 }
 
 function love.load()
     WorldManager.init()
+    Fire.init()
     
     -- Instantiate Scene Objects
     -- Entities.createPlayer(-820, 0)
@@ -159,6 +162,7 @@ function love.update(dt)
     Entities.update(physicsDt)
     Whale.update(physicsDt, Entities.player, Entities.list)
     Vegetation.update(physicsDt, Entities.list)
+    Fire.update(physicsDt, Entities.list, Vegetation.list)
     Water.update(Entities.list)
     Entities.checkCollisions()
     RopeSystem.updateVisuals()
@@ -193,12 +197,15 @@ function love.draw()
         local viewHeight = height / Camera.scale
         
         b2debugDraw(WorldManager.world, topLeftX, topLeftY, viewWidth, viewHeight)
+        Vegetation.draw()
+        Fire.draw()
         EffectsSystem.draw()
         Water.draw()
     else
         Entities.draw()
         RopeSystem.drawAll(game.debugMode)
         Vegetation.draw()
+        Fire.draw()
         EffectsSystem.draw()
         Whale.draw(game.debugMode)
         Water.draw()
@@ -477,6 +484,9 @@ function love.keypressed(key)
         local mx, my = Camera:screenToWorld(love.mouse.getPosition())
         local sensitivity = love.keyboard.isDown("lctrl") and 0.5 or 0
         Entities.createRadium(mx, my, sensitivity)
+    elseif key == "f" then
+        local mx, my = Camera:screenToWorld(love.mouse.getPosition())
+        Fire.igniteAt(mx, my, Entities.player, Entities.list, Vegetation.list)
     elseif key == "k" then
         if Entities.player and Entities.player.body and not Entities.player.body:isDestroyed() then
             Entities.player.autopilotEnabled = not Entities.player.autopilotEnabled
@@ -597,6 +607,7 @@ function drawUI()
         love.graphics.print("Total Entities: " .. #Entities.list, 10, 170)
         local vegStatus = Vegetation.isDestroyed() and "DESTROYED" or (#Vegetation.list .. " tufts")
         love.graphics.print("Vegetation: " .. vegStatus, 10, 190)
+        love.graphics.print("Active Fires: " .. #Fire.list, 10, 210)
     end
     
     love.graphics.print("Controls:", love.graphics.getWidth() - 220, 10)
