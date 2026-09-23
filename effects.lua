@@ -5,39 +5,47 @@ local EffectsSystem = {
     flashes = {}
 }
 
-function EffectsSystem.createFlash(x, y, radius, intensity)
+local function radiumT(mergePower)
+    return math.min(1, math.max(0, ((mergePower or 1) - 1) / 9))
+end
+
+local function lerp(a, b, t) return a + (b - a) * t end
+
+function EffectsSystem.createFlash(x, y, radius, intensity, colorType, mergePower)
     table.insert(EffectsSystem.flashes, {
         x = x, y = y,
         radius = radius,
         currentRadius = 0,
-        life = 0.15,           -- very short, intense flash
+        life = 0.15,
         maxLife = 0.15,
-        intensity = math.min(1, intensity)
+        intensity = math.min(1, intensity),
+        colorType = colorType or "fire",
+        mergePower = mergePower or 1
     })
 end
 
-function EffectsSystem.createShockwave(x, y, radius, intensity)
+function EffectsSystem.createShockwave(x, y, radius, intensity, colorType, mergePower)
     table.insert(EffectsSystem.shockwaves, {
         x = x, y = y,
         radius = radius,
         currentRadius = 5,
-        life = 0.4,          -- seconds
+        life = 0.4,
         maxLife = 0.4,
-        intensity = math.min(1, intensity)
+        intensity = math.min(1, intensity),
+        colorType = colorType or "fire",
+        mergePower = mergePower or 1
     })
 end
 
 function EffectsSystem.createDamageEffect(x1, y1, x2, y2, isLessIntense)
-    -- Insert the slice line with an intensity flag
     table.insert(EffectsSystem.damageEffects, {
         x1 = x1, y1 = y1,
         x2 = x2, y2 = y2,
-        life = isLessIntense and 0.12 or 0.30, -- Damage ticks fade away much quicker
+        life = isLessIntense and 0.12 or 0.30,
         isLessIntense = isLessIntense,
         type = "cutLine"
     })
     
-    -- Drop particle counts significantly if it is just a less intense damage tick
     local numSparks = isLessIntense and 2 or 12
     for i = 1, numSparks do
         local t = love.math.random()
@@ -53,23 +61,22 @@ function EffectsSystem.createDamageEffect(x1, y1, x2, y2, isLessIntense)
     end
 end
 
-function EffectsSystem.createParticle(x, y, vx, vy, life, fadeSpeed, size, pType)
+function EffectsSystem.createParticle(x, y, vx, vy, life, fadeSpeed, size, pType, mergePower)
     table.insert(EffectsSystem.particles, {
         x = x, y = y, vx = vx, vy = vy,
         life = life, fadeSpeed = fadeSpeed,
-        size = size or 2, type = pType, scale = 1
+        size = size or 2, type = pType, scale = 1,
+        mergePower = mergePower or 1
     })
 end
 
 function EffectsSystem.update(dt)
-    -- damageEffects update ...
     for i = #EffectsSystem.damageEffects, 1, -1 do
         local fx = EffectsSystem.damageEffects[i]
         fx.life = fx.life - dt
         if fx.life <= 0 then table.remove(EffectsSystem.damageEffects, i) end
     end
     
-    -- particles update ...
     for i = #EffectsSystem.particles, 1, -1 do
         local p = EffectsSystem.particles[i]
         p.life = p.life - dt * (p.fadeSpeed or 200)
@@ -80,7 +87,6 @@ function EffectsSystem.update(dt)
         if p.life <= 0 then table.remove(EffectsSystem.particles, i) end
     end
     
-    -- shockwaves update ...
     for i = #EffectsSystem.shockwaves, 1, -1 do
         local sw = EffectsSystem.shockwaves[i]
         sw.life = sw.life - dt
@@ -92,14 +98,13 @@ function EffectsSystem.update(dt)
         end
     end
     
-    -- flashes update (expand and fade quickly)
     for i = #EffectsSystem.flashes, 1, -1 do
         local f = EffectsSystem.flashes[i]
         f.life = f.life - dt
         if f.life <= 0 then
             table.remove(EffectsSystem.flashes, i)
         else
-            local t = 1 - (f.life / f.maxLife)   -- 0→1
+            local t = 1 - (f.life / f.maxLife)
             f.currentRadius = f.radius * t
         end
     end
@@ -109,20 +114,16 @@ function EffectsSystem.draw()
     for _, fx in ipairs(EffectsSystem.damageEffects) do
         if fx.type == "cutLine" then
             local alpha = math.min(1, fx.life * 4)
-            -- Scale overall transparency down if it's a minor damage preview cut
             if fx.isLessIntense then alpha = alpha * 0.35 end
             
-            -- 1. Outer heavy glow
             love.graphics.setLineWidth(fx.isLessIntense and 3 or 6)
             love.graphics.setColor(1, 0.25, 0, alpha * 0.4)
             love.graphics.line(fx.x1, fx.y1, fx.x2, fx.y2)
             
-            -- 2. Mid-tone neon line
             love.graphics.setLineWidth(fx.isLessIntense and 1.5 or 3)
             love.graphics.setColor(1, 0.50, 0, alpha * 0.7)
             love.graphics.line(fx.x1, fx.y1, fx.x2, fx.y2)
             
-            -- 3. White-hot inner core (Skip entirely on low intensity for a duller iron look)
             if not fx.isLessIntense then
                 love.graphics.setLineWidth(1.2)
                 love.graphics.setColor(1, 0.85, 0.3, alpha)
@@ -136,15 +137,22 @@ function EffectsSystem.draw()
     -- Draw flashes (bright expanding circles)
     for _, f in ipairs(EffectsSystem.flashes) do
         local alpha = f.intensity * (1 - f.life / f.maxLife) * 0.9
-        -- Outer glow
-        love.graphics.setColor(1, 0.8, 0.3, alpha * 0.5)
-        love.graphics.circle("fill", f.x, f.y, f.currentRadius * 1.2)
-        -- Core
-        love.graphics.setColor(1, 0.9, 0.5, alpha)
-        love.graphics.circle("fill", f.x, f.y, f.currentRadius)
-        -- White hot center
-        love.graphics.setColor(1, 1, 0.9, alpha * 0.8)
-        love.graphics.circle("fill", f.x, f.y, f.currentRadius * 0.5)
+        if f.colorType == "radium" then
+            local t = radiumT(f.mergePower)
+            love.graphics.setColor(lerp(0.10, 0.60, t), 0.9, lerp(0.20, 0.05, t), alpha * 0.5)
+            love.graphics.circle("fill", f.x, f.y, f.currentRadius * 1.2)
+            love.graphics.setColor(lerp(0.30, 0.90, t), 1.0, lerp(0.40, 0.10, t), alpha)
+            love.graphics.circle("fill", f.x, f.y, f.currentRadius)
+            love.graphics.setColor(lerp(0.80, 1.00, t), 1.0, lerp(0.90, 0.60, t), alpha * 0.85)
+            love.graphics.circle("fill", f.x, f.y, f.currentRadius * 0.5)
+        else
+            love.graphics.setColor(1, 0.8, 0.3, alpha * 0.5)
+            love.graphics.circle("fill", f.x, f.y, f.currentRadius * 1.2)
+            love.graphics.setColor(1, 0.9, 0.5, alpha)
+            love.graphics.circle("fill", f.x, f.y, f.currentRadius)
+            love.graphics.setColor(1, 1, 0.9, alpha * 0.8)
+            love.graphics.circle("fill", f.x, f.y, f.currentRadius * 0.5)
+        end
     end
     
     for _, p in ipairs(EffectsSystem.particles) do
@@ -159,6 +167,16 @@ function EffectsSystem.draw()
             love.graphics.setColor(1, 0.5 * intensity, 0.1, alpha)
         elseif p.type == "ember" then
             love.graphics.setColor(1, 0.4, 0.05, alpha * 0.9)
+        elseif p.type == "radiumSpark" or p.type == "greenSpark" then
+            local intensity = 0.8 + math.random() * 0.4
+            local t = radiumT(p.mergePower)
+            love.graphics.setColor(lerp(0.40, 0.95, t) * intensity, 1.0, lerp(0.60, 0.10, t) * intensity, alpha)
+        elseif p.type == "radiumGlow" then
+            local t = radiumT(p.mergePower)
+            love.graphics.setColor(lerp(0.15, 0.85, t), 1.0, lerp(0.35, 0.10, t), alpha * 0.85)
+        elseif p.type == "radiumSmoke" then
+            local t = radiumT(p.mergePower)
+            love.graphics.setColor(lerp(0.10, 0.45, t), lerp(0.30, 0.40, t), lerp(0.15, 0.10, t), alpha * 0.45)
         elseif p.type == "smoke" then
             love.graphics.setColor(0.3, 0.3, 0.3, alpha * 0.5)
         elseif p.type == "debris" then
@@ -177,12 +195,22 @@ function EffectsSystem.draw()
     
     for _, sw in ipairs(EffectsSystem.shockwaves) do
         local alpha = sw.intensity * (sw.life / sw.maxLife) * 0.8
-        love.graphics.setColor(1, 0.6, 0.2, alpha)
-        love.graphics.setLineWidth(4 * sw.intensity)
-        love.graphics.circle("line", sw.x, sw.y, sw.currentRadius)
-        love.graphics.setLineWidth(2 * sw.intensity)
-        love.graphics.setColor(1, 0.9, 0.4, alpha * 0.7)
-        love.graphics.circle("line", sw.x, sw.y, sw.currentRadius * 0.7)
+        if sw.colorType == "radium" then
+            local t = radiumT(sw.mergePower)
+            love.graphics.setColor(lerp(0.20, 0.90, t), 1.0, lerp(0.30, 0.05, t), alpha)
+            love.graphics.setLineWidth(4 * sw.intensity)
+            love.graphics.circle("line", sw.x, sw.y, sw.currentRadius)
+            love.graphics.setLineWidth(2 * sw.intensity)
+            love.graphics.setColor(lerp(0.60, 1.00, t), 1.0, lerp(0.70, 0.30, t), alpha * 0.7)
+            love.graphics.circle("line", sw.x, sw.y, sw.currentRadius * 0.7)
+        else
+            love.graphics.setColor(1, 0.6, 0.2, alpha)
+            love.graphics.setLineWidth(4 * sw.intensity)
+            love.graphics.circle("line", sw.x, sw.y, sw.currentRadius)
+            love.graphics.setLineWidth(2 * sw.intensity)
+            love.graphics.setColor(1, 0.9, 0.4, alpha * 0.7)
+            love.graphics.circle("line", sw.x, sw.y, sw.currentRadius * 0.7)
+        end
     end
     love.graphics.setLineWidth(1)
 end

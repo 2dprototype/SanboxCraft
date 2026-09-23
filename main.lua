@@ -14,9 +14,10 @@ local game = { debugMode = false, state = "playing" }
 local debugDrawEnabled = false
 local cameraInstructions = {
     "F1: Follow Player", "F2: Object", "F3: Free Move",
-    "Wheel or -/+: Zoom", "WASD: Free Move", "R: Reset Zoom",
+    "Wheel or -/+: Zoom", "WASD: Free Move", "Backspace: Reset Zoom",
     "F5: Toggle Debug Mode", "SPACE: Grab/Release Object",
-    "E: Grab Enemy", "SHIFT: Connect two objects & detach"
+    "E: Grab Enemy", "SHIFT: Connect two objects & detach",
+    "G/T/N/R: Grenade/TNT/Nuke/Radium"
 }
 
 function love.load()
@@ -336,7 +337,7 @@ function setTimerOnTouchedExplosive(seconds)
     if player and player.body then
         local px, py = player.body:getPosition()
         for _, e in ipairs(Entities.list) do
-            if (e.type == "grenade" or e.type == "tnt" or e.type == "nuke") and e.body and not e.body:isDestroyed() then
+            if (e.type == "grenade" or e.type == "tnt" or e.type == "nuke" or e.type == "radium") and e.body and not e.body:isDestroyed() then
                 local ex, ey = e.body:getPosition()
                 local dist = math.sqrt((px-ex)^2 + (py-ey)^2)
                 if dist < 40 then   -- contact range
@@ -390,7 +391,7 @@ function love.keypressed(key)
     elseif key == "f3" then Camera.mode = "free_move"
     elseif key == "=" or key == "+" then Camera.scale = math.min(Camera.scale + 0.1, Config.camera.maxScale)
     elseif key == "-" or key == "_" then Camera.scale = math.max(Camera.scale - 0.1, Config.camera.minScale)
-    elseif key == "r" then Camera.scale = 1.0 
+    elseif key == "backspace" then Camera.scale = 1.0 
     elseif key == "f5" then
         game.debugMode = not game.debugMode
         Entities.setDebugMode(game.debugMode)
@@ -452,6 +453,14 @@ function love.keypressed(key)
         nuke.isInert = true
         nuke.mergePower = 0
         nuke.sensitivity = love.keyboard.isDown("lctrl") and 0.5 or 0
+    elseif key == "r" and (love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift")) then
+        -- Shift+R: Create inert radium (damageless)
+        local mx, my = Camera:screenToWorld(love.mouse.getPosition())
+        local radium = Entities.createRadium(mx, my)
+        radium.explosionDamage = 0
+        radium.isInert = true
+        radium.mergePower = 0
+        radium.sensitivity = love.keyboard.isDown("lctrl") and 0.5 or 0
     elseif key == "g" then
         local mx, my = Camera:screenToWorld(love.mouse.getPosition())
         local sensitivity = love.keyboard.isDown("lctrl") and 0.5 or 0
@@ -464,6 +473,10 @@ function love.keypressed(key)
         local mx, my = Camera:screenToWorld(love.mouse.getPosition())
         local sensitivity = love.keyboard.isDown("lctrl") and 0.5 or 0
         Entities.createNuke(mx, my, sensitivity)
+    elseif key == "r" then
+        local mx, my = Camera:screenToWorld(love.mouse.getPosition())
+        local sensitivity = love.keyboard.isDown("lctrl") and 0.5 or 0
+        Entities.createRadium(mx, my, sensitivity)
     elseif key == "k" then
         if Entities.player and Entities.player.body and not Entities.player.body:isDestroyed() then
             Entities.player.autopilotEnabled = not Entities.player.autopilotEnabled
@@ -499,7 +512,7 @@ function love.keypressed(key)
                         for _, e in ipairs(Entities.list) do
                             if e.body == otherBody then
                                 -- Restrict planting to these types:
-                                if e.type == "box" or e.type == "ball" or e.type == "grenade" or e.type == "tnt" or e.type == "nuke" then
+                                if e.type == "box" or e.type == "ball" or e.type == "grenade" or e.type == "tnt" or e.type == "nuke" or e.type == "radium" then
                                     isValidTarget = true
                                 end
                                 break
@@ -609,13 +622,20 @@ function drawDebugData()
     -- Draw explosive blast radii and timers
     love.graphics.setLineWidth(0.5)
     for _, e in ipairs(Entities.list) do
-        if (e.type == "grenade" or e.type == "tnt" or e.type == "nuke") and e.body and not e.body:isDestroyed() then
+        if (e.type == "grenade" or e.type == "tnt" or e.type == "nuke" or e.type == "radium") and e.body and not e.body:isDestroyed() then
             local x, y = e.body:getPosition()
-            -- Blast radius circle (semi-transparent red)
-            love.graphics.setColor(1, 0, 0, 0.09)
-            love.graphics.circle("fill", x, y, e.explosionRadius)
-            love.graphics.setColor(1, 0, 0, 0.17)
-            love.graphics.circle("line", x, y, e.explosionRadius)
+            -- Blast radius circle (semi-transparent green for radium, red for others)
+            if e.type == "radium" then
+                love.graphics.setColor(0.1, 1, 0.2, 0.10)
+                love.graphics.circle("fill", x, y, e.explosionRadius)
+                love.graphics.setColor(0.2, 1, 0.3, 0.25)
+                love.graphics.circle("line", x, y, e.explosionRadius)
+            else
+                love.graphics.setColor(1, 0, 0, 0.09)
+                love.graphics.circle("fill", x, y, e.explosionRadius)
+                love.graphics.setColor(1, 0, 0, 0.17)
+                love.graphics.circle("line", x, y, e.explosionRadius)
+            end
             -- Timer info
             if e.timer and e.timer > 0 then
                 love.graphics.setColor(1, 1, 0, 1)

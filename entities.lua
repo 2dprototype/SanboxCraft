@@ -28,8 +28,48 @@ local EXPLOSIVE_PRESETS = {
         radius = 800, damage = 2000, force = 5000,
         width = 40, height = 120, mass = 5.0, friction = 0.5, restitution = 0.1,
         label = "NUKE", sensitivity = 0
+    },
+    radium = {
+        radius = 450, damage = 1200, force = 300,
+        width = 14, height = 14, mass = 2.0, friction = 0.35, restitution = 0.2,
+        label = "RADIUM", sensitivity = 0
     }
 }
+
+-- ============================================================
+-- RADIUM MERGE PALETTE
+-- As mergePower grows: pure green -> greener -> yellow-lime
+-- mergePower 1.0 = pure radium green
+-- mergePower 2.5+ = max yellow-lime
+-- ============================================================
+local RADIUM_PALETTE = {
+    -- {green_base}, {yellow_lime_target}
+    shellAura     = {{0.15, 1.00, 0.05}, {0.75, 1.00, 0.02}},
+    coreGlow      = {{0.50, 1.00, 0.10}, {0.95, 1.00, 0.05}},
+    epicenterGlow = {{0.90, 1.00, 0.40}, {1.00, 1.00, 0.15}},
+    rim           = {{0.20, 1.00, 0.10}, {0.85, 1.00, 0.05}},
+    innerGlow     = {{0.10, 1.00, 0.05}, {0.70, 1.00, 0.03}},
+    etching       = {{0.45, 1.00, 0.10}, {0.90, 1.00, 0.05}},
+    brace         = {{0.80, 1.00, 0.35}, {1.00, 1.00, 0.20}},
+    core          = {{0.55, 1.00, 0.08}, {0.95, 1.00, 0.05}},
+    epicenter     = {{0.95, 1.00, 0.70}, {1.00, 1.00, 0.50}},
+    timer         = {{0.72, 1.00, 0.20}, {0.95, 1.00, 0.10}},
+}
+
+local function radiumShiftT(mergePower)
+    return math.min(1, math.max(0, ((mergePower or 1) - 1) / 9))
+end
+
+local function radiumPick(key, mergePower)
+    local p = RADIUM_PALETTE[key]
+    local t = radiumShiftT(mergePower)
+    return p[1][1] + (p[2][1] - p[1][1]) * t,
+           p[1][2] + (p[2][2] - p[1][2]) * t,
+           p[1][3] + (p[2][3] - p[1][3]) * t
+end
+
+-- Expose so effects.lua can use the same shift
+Entities.radiumShiftT = radiumShiftT
 
 function Entities.clear()
     Entities.player = nil
@@ -232,6 +272,34 @@ function Entities.createNuke(x, y, sensitivity)
     return nuke
 end
 
+function Entities.createRadium(x, y, sensitivity)
+    local p = EXPLOSIVE_PRESETS.radium
+    local body = love.physics.newBody(WorldManager.world, x, y, "dynamic")
+    local shape = love.physics.newRectangleShape(p.width, p.height)
+    local fixture = love.physics.newFixture(body, shape, p.mass)
+    fixture:setFriction(p.friction)
+    fixture:setRestitution(p.restitution)
+    
+    local radium = {
+        type = "radium",
+        body = body,
+        shape = shape,
+        fixture = fixture,
+        w = p.width,
+        h = p.height,
+        timer = nil,
+        explosionRadius = p.radius,
+        explosionDamage = p.damage,
+        explosionForce = p.force,
+        ropeIds = {},
+        damageFlash = 0,
+        sensitivity = sensitivity or p.sensitivity,
+        glowPhase = love.math.random() * math.pi * 2
+    }
+    table.insert(Entities.list, radium)
+    return radium
+end
+
 function Entities.update(dt)
     -- Guard condition changed: Allow logic to run even if player is dead, as long as body exists
     if not Entities.player or not Entities.player.body or Entities.player.body:isDestroyed() then return end
@@ -354,35 +422,53 @@ function Entities.update(dt)
         elseif e and e.body and e.body:isActive() then
             if e.damageFlash then e.damageFlash = math.max(0, e.damageFlash - dt) end
             
-            if (e.type == "grenade" or e.type == "tnt" or e.type == "nuke") and e.timer and e.timer > 0 then
+            if (e.type == "grenade" or e.type == "tnt" or e.type == "nuke" or e.type == "radium") and e.timer and e.timer > 0 then
                 e.timer = e.timer - dt
                 if e.timer <= 0 then
                     Entities.explode(e)
                 end
             end
             
-            -- Only track/hunt the player if they are still alive
-            if e.type == "enemy" and not p.dead then
-                local ex, ey = e.body:getPosition()
-                local dx, dy = pX - ex, pY - ey
-                e.thrusterCooldown = math.max(0, (e.thrusterCooldown or 0) - dt)
-                
-                local fMag = math.sqrt(dx^2 + dy^2)
-                if fMag > 0 then
-                    local scale = math.min(eCfg.maxForce / fMag, eCfg.trackingScale)
-                    e.body:applyForce(dx * scale * fMag, dy * scale * fMag)
+            if e.body and not e.body:isDestroyed() then
+                if e.type == "radium" and love.math.random() < 0.3 then
+                    local rx, ry = e.body:getPosition()
+                    local pSize = 1.5 + love.math.random() * 2.5
+                    local hw = (e.w or 24) / 2
+                    -- Spawn randomly across the block's face
+                    local px = rx + love.math.random(-hw, hw)
+                    local py = ry + love.math.random(-hw, hw)
+                    -- Float elegantly upwards like radioactive gas
+                    EffectsSystem.createParticle(
+                        px, py,
+                        love.math.random(-15, 15),
+                        love.math.random(-35, -5),
+                        25, 120, pSize, "radiumGlow", e.mergePower
+                    )
                 end
                 
-                local vx, vy = e.body:getLinearVelocity()
-                local speed = math.sqrt(vx^2 + vy^2)
-                if speed > 20 and e.thrusterCooldown <= 0 then
-                    local ang = math.atan2(vy, vx)
-                    local backX = ex - math.cos(ang) * (e.w / 2)
-                    local backY = ey - math.sin(ang) * (e.h / 2)
-                    EffectsSystem.createParticle(backX, backY, -vx * 0.3 + love.math.random(-10, 10), -vy * 0.3 + love.math.random(-10, 10), 20, 250, 1.5, "enemy_thruster")
-                    e.thrusterCooldown = eCfg.thrusterCooldown
+                -- Only track/hunt the player if they are still alive
+                if e.type == "enemy" and not p.dead then
+                    local ex, ey = e.body:getPosition()
+                    local dx, dy = pX - ex, pY - ey
+                    e.thrusterCooldown = math.max(0, (e.thrusterCooldown or 0) - dt)
+                    
+                    local fMag = math.sqrt(dx^2 + dy^2)
+                    if fMag > 0 then
+                        local scale = math.min(eCfg.maxForce / fMag, eCfg.trackingScale)
+                        e.body:applyForce(dx * scale * fMag, dy * scale * fMag)
+                    end
+                    
+                    local vx, vy = e.body:getLinearVelocity()
+                    local speed = math.sqrt(vx^2 + vy^2)
+                    if speed > 20 and e.thrusterCooldown <= 0 then
+                        local ang = math.atan2(vy, vx)
+                        local backX = ex - math.cos(ang) * (e.w / 2)
+                        local backY = ey - math.sin(ang) * (e.h / 2)
+                        EffectsSystem.createParticle(backX, backY, -vx * 0.3 + love.math.random(-10, 10), -vy * 0.3 + love.math.random(-10, 10), 20, 250, 1.5, "enemy_thruster")
+                        e.thrusterCooldown = eCfg.thrusterCooldown
+                    end
+                    e.body:applyTorque(-e.body:getAngle() * 30 - e.body:getAngularVelocity() * 2.5)
                 end
-                e.body:applyTorque(-e.body:getAngle() * 30 - e.body:getAngularVelocity() * 2.5)
             end
             
                 
@@ -458,7 +544,7 @@ function Entities.checkSensitiveExplosives()
     
     -- 1. Build lookup table
     for _, e in ipairs(Entities.list) do
-        if (e.type == "grenade" or e.type == "tnt" or e.type == "nuke") 
+        if (e.type == "grenade" or e.type == "tnt" or e.type == "nuke" or e.type == "radium") 
            and e.body and not e.body:isDestroyed() 
            and e.sensitivity and e.sensitivity > 0 then
             
@@ -534,25 +620,31 @@ function Entities.explode(e)
     local maxForce = e.explosionForce
 
     local isNuke = (e.type == "nuke")
+    local isRadium = (e.type == "radium")
     local intensity = (maxDamage / 300) * 0.6 + (maxForce / 1000) * 0.4
     intensity = math.min(1, intensity)
     -- if isNuke then intensity = 1.0 end
 
+    local colorType = isRadium and "radium" or "fire"
+    local mergePower = e.mergePower or 1
+
     -- 1. Bright flash (big damage effect line)
-    EffectsSystem.createFlash(cx, cy, radius, intensity)
+    EffectsSystem.createFlash(cx, cy, radius, intensity, colorType, mergePower)
 
     -- 2. Shockwave ring
-    if isNuke then
-        for i = 1, 3 do
-            EffectsSystem.createShockwave(cx, cy, radius * (0.8 + i * 0.1), intensity)
+    if isNuke or isRadium then
+        local waves = isNuke and 3 or 2
+        for i = 1, waves do
+            EffectsSystem.createShockwave(cx, cy, radius * (0.8 + i * 0.1), intensity, colorType, mergePower)
         end
     else
-        EffectsSystem.createShockwave(cx, cy, radius, intensity)
+        EffectsSystem.createShockwave(cx, cy, radius, intensity, colorType, mergePower)
     end
 
-    -- 3. Fireball core (large orange particles)
+    -- 3. Fireball core / Radiation core
     local coreCount = 10 + math.floor(20 * intensity)
-    if isNuke then coreCount = 80 end
+    if isNuke then coreCount = 80 elseif isRadium then coreCount = 120 end
+    local corePType = isRadium and "radiumGlow" or "orangeSpark"
     for i = 1, coreCount do
         local angle = love.math.random() * math.pi * 2
         local dist = love.math.random(0, radius * 0.6)
@@ -561,12 +653,12 @@ function Entities.explode(e)
         local vx = math.cos(angle) * love.math.random(30, 120 * intensity)
         local vy = math.sin(angle) * love.math.random(30, 120 * intensity)
         local size = 2 + love.math.random() * 4 * intensity
-        EffectsSystem.createParticle(px, py, vx, vy, 20 + 30 * intensity, 250, size, "orangeSpark")
+        EffectsSystem.createParticle(px, py, vx, vy, 20 + 30 * intensity, 250, size, corePType, mergePower)
     end
 
     -- 4. Sparks and embers (more = more damage)
     local sparkCount = 30 + math.floor(70 * intensity)
-    if isNuke then sparkCount = 200 end
+    if isNuke then sparkCount = 200 elseif isRadium then sparkCount = 250 end
     
     for i = 1, sparkCount do
         local angle = love.math.random() * math.pi * 2
@@ -576,13 +668,18 @@ function Entities.explode(e)
         local speed = 50 + love.math.random() * 200 * intensity
         local vx = math.cos(angle) * speed + love.math.random(-30, 30)
         local vy = math.sin(angle) * speed + love.math.random(-30, 30)
-        local ptype = love.math.random() < 0.7 and "orangeSpark" or "ember"
-        EffectsSystem.createParticle(px, py, vx, vy, 15 + 20 * intensity, 300, 1.5 + intensity, ptype)
+        local ptype
+        if isRadium then
+            ptype = love.math.random() < 0.7 and "radiumSpark" or "radiumGlow"
+        else
+            ptype = love.math.random() < 0.7 and "orangeSpark" or "ember"
+        end
+        EffectsSystem.createParticle(px, py, vx, vy, 15 + 20 * intensity, 300, 1.5 + intensity, ptype, mergePower)
     end
 
     -- 5. Debris chunks (small dark pieces)
     local debrisCount = 5 + math.floor(15 * intensity)
-    if isNuke then debrisCount = 50 end
+    if isNuke then debrisCount = 50 elseif isRadium then debrisCount = 20 end
     
     for i = 1, debrisCount do
         local angle = love.math.random() * math.pi * 2
@@ -592,12 +689,13 @@ function Entities.explode(e)
         local speed = 80 + love.math.random() * 150 * intensity
         local vx = math.cos(angle) * speed + love.math.random(-40, 40)
         local vy = math.sin(angle) * speed + love.math.random(-40, 40)
-        EffectsSystem.createParticle(px, py, vx, vy, 25, 200, 2 + intensity, "debris")
+        EffectsSystem.createParticle(px, py, vx, vy, 25, 200, 2 + intensity, "debris", mergePower)
     end
 
-    -- 6. Thick smoke cloud
+    -- 6. Thick smoke cloud / Radiation fallout
     local smokeCount = 20 + math.floor(40 * intensity)
-    if isNuke then smokeCount = 150 end
+    if isNuke then smokeCount = 150 elseif isRadium then smokeCount = 70 end
+    local smokePType = isRadium and "radiumSmoke" or "smoke"
     
     for i = 1, smokeCount do
         local angle = love.math.random() * math.pi * 2
@@ -607,7 +705,7 @@ function Entities.explode(e)
         local vx = math.cos(angle) * love.math.random(10, 50) + love.math.random(-20, 20)
         local vy = math.sin(angle) * love.math.random(10, 50) + love.math.random(-20, 20) - 20
         local size = 3 + love.math.random() * 5 * intensity
-        EffectsSystem.createParticle(px, py, vx, vy, 40 + 60 * intensity, 120, size, "smoke")
+        EffectsSystem.createParticle(px, py, vx, vy, 40 + 60 * intensity, 120, size, smokePType, mergePower)
     end
 
     -- 7. Collect affected entities from Entities.list
@@ -689,7 +787,8 @@ function Entities.mergeExplosivesNearPlayer(player)
     local explosivesByType = {
         grenade = {},
         tnt = {},
-        nuke = {}
+        nuke = {},
+        radium = {}
     }
 
     for _, e in ipairs(Entities.list) do
@@ -703,6 +802,8 @@ function Entities.mergeExplosivesNearPlayer(player)
                     table.insert(explosivesByType.tnt, e)
                 elseif e.type == "nuke" then
                     table.insert(explosivesByType.nuke, e)
+                elseif e.type == "radium" then
+                    table.insert(explosivesByType.radium, e)
                 end
             end
         end
@@ -767,6 +868,14 @@ function Entities.mergeExplosivesNearPlayer(player)
                 newExplosive.explosionDamage = totalDamage
                 newExplosive.explosionForce = totalForce
                 newExplosive.explosionRadius = math.min(1200, totalRadius)
+                newExplosive.mergeCount = mergeCount
+                newExplosive.mergePower = mergeCount
+                newExplosive.sensitivity = totalSensitivity
+            elseif typ == "radium" then
+                newExplosive = Entities.createRadium(centerX, centerY)
+                newExplosive.explosionDamage = totalDamage
+                newExplosive.explosionForce = totalForce
+                newExplosive.explosionRadius = math.min(900, totalRadius)
                 newExplosive.mergeCount = mergeCount
                 newExplosive.mergePower = mergeCount
                 newExplosive.sensitivity = totalSensitivity
@@ -1184,7 +1293,107 @@ function Entities.draw()
                         love.graphics.print("! ARMING FAST !", x - 45, y - hh - 48)
                     end
                 end
-        
+            elseif e.type == "radium" then
+                local time = love.timer.getTime()
+                local pulse = 0.5 + 0.5 * math.sin(time * 8 + (e.glowPhase or 0))
+                local intensePulse = math.pow(pulse, 3)
+                local mp = e.mergePower or 1
+
+                love.graphics.push()
+                love.graphics.translate(x, y)
+                love.graphics.rotate(e.body:getAngle())
+
+                local w = e.w or 24
+                local h = e.h or 24
+                local hw = w / 2
+                local hh = h / 2
+
+                local r, g, b
+
+                -- ============================================
+                -- GLOW LAYERS (additive)
+                -- ============================================
+                love.graphics.setBlendMode("add")
+
+                -- Outer shell aura
+                r, g, b = radiumPick("shellAura", mp)
+                local glowAlpha = 0.08 + 0.12 * pulse
+                for i = 3, 1, -1 do
+                    local expand = i * 3.5
+                    local a = glowAlpha * (1 / i)
+                    love.graphics.setColor(r, g, b, a)
+                    love.graphics.rectangle("fill", -hw - expand, -hh - expand, w + expand * 2, h + expand * 2, 4, 4)
+                end
+
+                -- Core energy glow
+                r, g, b = radiumPick("coreGlow", mp)
+                local coreGlowSize = (w - 4) + 8 * pulse
+                love.graphics.setColor(r, g, b, 0.35 + 0.25 * pulse)
+                love.graphics.rectangle("fill", -coreGlowSize / 2, -coreGlowSize / 2, coreGlowSize, coreGlowSize, 3, 3)
+
+                -- Epicenter glow
+                r, g, b = radiumPick("epicenterGlow", mp)
+                local centerGlowSize = (w - 12) + 10 * intensePulse
+                love.graphics.setColor(r, g, b, 0.5 + 0.3 * intensePulse)
+                love.graphics.rectangle("fill", -centerGlowSize / 2, -centerGlowSize / 2, centerGlowSize, centerGlowSize, 2, 2)
+
+                love.graphics.setBlendMode("alpha")
+
+                -- ============================================
+                -- BLACK SHELL (with shifting green->yellow glow)
+                -- ============================================
+                love.graphics.setColor(0.02, 0.05, 0.01, 0.95)
+                love.graphics.rectangle("fill", -hw, -hh, w, h, 2, 2)
+
+                -- Rim glow
+                r, g, b = radiumPick("rim", mp)
+                love.graphics.setColor(r, g, b, 0.7 + 0.3 * pulse)
+                love.graphics.setLineWidth(2)
+                love.graphics.rectangle("line", -hw, -hh, w, h, 2, 2)
+
+                -- Inner additive glow
+                love.graphics.setBlendMode("add")
+                r, g, b = radiumPick("innerGlow", mp)
+                love.graphics.setColor(r, g, b, 0.15 + 0.1 * pulse)
+                love.graphics.rectangle("fill", -hw + 1, -hh + 1, w - 2, h - 2, 2, 2)
+                love.graphics.setBlendMode("alpha")
+
+                -- ============================================
+                -- ETCHINGS / BRACES / CORE / EPICENTER
+                -- ============================================
+                r, g, b = radiumPick("etching", mp)
+                love.graphics.setColor(r, g, b, 0.6 + 0.4 * pulse)
+                love.graphics.setLineWidth(1.5)
+                love.graphics.rectangle("line", -hw + 1.5, -hh + 1.5, w - 3, h - 3, 2, 2)
+
+                r, g, b = radiumPick("brace", mp)
+                love.graphics.setColor(r, g, b, 0.9)
+                local cL = 5
+                love.graphics.line(-hw, -hh+cL, -hw, -hh, -hw+cL, -hh)
+                love.graphics.line(hw-cL, -hh, hw, -hh, hw, -hh+cL)
+                love.graphics.line(-hw, hh-cL, -hw, hh, -hw+cL, hh)
+                love.graphics.line(hw-cL, hh, hw, hh, hw, hh-cL)
+
+                r, g, b = radiumPick("core", mp)
+                local coreSize = (w - 10) + (2 * pulse)
+                love.graphics.setColor(r, g, b, 0.85 + 0.15 * pulse)
+                love.graphics.rectangle("fill", -coreSize / 2, -coreSize / 2, coreSize, coreSize, 1, 1)
+
+                r, g, b = radiumPick("epicenter", mp)
+                local centerSize = (w - 16) + (3 * intensePulse)
+                love.graphics.setColor(r, g, b, 0.9 + 0.1 * intensePulse)
+                love.graphics.rectangle("fill", -centerSize / 2, -centerSize / 2, centerSize, centerSize, 1, 1)
+
+                love.graphics.pop()
+
+                -- Timer text
+                if e.timer and e.timer > 0 then
+                    local alpha = 1
+                    if e.timer < 3 then alpha = 0.5 + math.sin(time * 15) * 0.5 end
+                    r, g, b = radiumPick("timer", mp)
+                    love.graphics.setColor(r, g, b, alpha)
+                    love.graphics.print(string.format("RAD %.1f", e.timer), x - 22, y - hh - 22)
+                end
             else
                 love.graphics.polygon("fill", e.body:getWorldPoints(e.shape:getPoints()))
             end
