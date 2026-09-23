@@ -23,15 +23,15 @@ end
 function Vegetation.createGrass(body, localX, localY, w, h, localAngle)
     if not body or body:isDestroyed() then return nil end
 
-    -- Generate a realistic organic blend for Healthy Grass (Vibrant lush green)
-    local hR = 0.10 + math.random() * 0.08
-    local hG = 0.65 + math.random() * 0.15
-    local hB = 0.12 + math.random() * 0.06
+    -- Generate a realistic organic blend for Healthy Grass (Deep Forest to Olive Green)
+    local hR = 0.12 + math.random() * 0.10
+    local hG = 0.28 + math.random() * 0.18
+    local hB = 0.10 + math.random() * 0.08
     
-    -- Generate a realistic organic blend for Decayed/Yellow Grass (Dry straw/yellow)
-    local dR = 0.85 + math.random() * 0.10
-    local dG = 0.74 + math.random() * 0.10
-    local dB = 0.15 + math.random() * 0.06
+    -- Generate a realistic organic blend for Dead/Burnt Grass (Dark Ochre/Mustard/Brown)
+    local dR = 0.42 + math.random() * 0.15
+    local dG = 0.35 + math.random() * 0.12
+    local dB = 0.12 + math.random() * 0.06
     
     local maxHp = 100
     local grass = {
@@ -397,13 +397,13 @@ function Vegetation.draw()
                 -- Roots (s=1) are shadowed.
                 -- Tips (s=segments) are slightly brighter.
                 local heightRatio = s / segments
-                local depthShadow = 0.45 + (0.55 * heightRatio)
+                local depthShadow = 0.4 + (0.6 * heightRatio)
                 
-                -- Add a slight yellow-drying tint to the tips when decaying
-                local tipYellow = (heightRatio > 0.6) and (0.15 * decay * heightRatio) or 0
+                -- Add a slight yellow tint to the very tips of the grass for realism
+                local tipYellow = (heightRatio > 0.7) and (0.1 * heightRatio) or 0
                 
                 local fR = math.min(1, bR * depthShadow * blade.colorMod + tipYellow)
-                local fG = math.min(1, bG * depthShadow * blade.colorMod + tipYellow * 0.8)
+                local fG = math.min(1, bG * depthShadow * blade.colorMod + tipYellow)
                 local fB = math.min(1, bB * depthShadow * blade.colorMod)
                 
                 love.graphics.setColor(fR, fG, fB)
