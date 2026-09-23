@@ -482,6 +482,11 @@ function Fire.update(dt, entitiesList, vegetationList)
                     end
                 end
 
+                local okTrees, Trees = pcall(require, "trees")
+                if okTrees and Trees and Trees.damageInRadius then
+                    Trees.damageInRadius(f.hitWorldX, f.hitWorldY, f.radius + 15, f.damagePerSec * dt * 0.8)
+                end
+
                 if f.target and f.target.type then
                     if f.target.type == "grenade" or f.target.type == "tnt" or f.target.type == "nuke" or f.target.type == "radium" then
                         if not f.target.timer or f.target.timer <= 0 then

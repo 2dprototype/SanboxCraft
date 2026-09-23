@@ -765,6 +765,11 @@ function Entities.explode(e)
         end
     end
 
+    local okTrees, Trees = pcall(require, "trees")
+    if okTrees and Trees and Trees.damageInRadius then
+        Trees.damageInRadius(cx, cy, radius, maxDamage)
+    end
+
     -- Destroy the explosive
     RopeSystem.destroyAllForObject(e)
     e.body:destroy()
@@ -1394,6 +1399,35 @@ function Entities.draw()
                     love.graphics.setColor(r, g, b, alpha)
                     love.graphics.print(string.format("RAD %.1f", e.timer), x - 22, y - hh - 22)
                 end
+            elseif e.isTreeLog then
+                love.graphics.push()
+                love.graphics.translate(x, y)
+                love.graphics.rotate(e.body:getAngle())
+                local hw, hh = e.w / 2, e.h / 2
+                -- Main wood trunk
+                love.graphics.setColor(0.34, 0.22, 0.13, 1.0)
+                love.graphics.rectangle("fill", -hw, -hh, e.w, e.h, 4, 4)
+                -- Shadowed side
+                love.graphics.setColor(0.20, 0.12, 0.07, 0.6)
+                love.graphics.rectangle("fill", -hw, -hh, e.w, e.h * 0.4, 3, 3)
+                -- Bark highlights
+                love.graphics.setColor(0.44, 0.30, 0.18, 0.6)
+                love.graphics.setLineWidth(1.5)
+                love.graphics.line(-hw + 8, -hh + 3, hw - 8, -hh + 3)
+                love.graphics.line(-hw + 8, hh - 3, hw - 8, hh - 3)
+                -- End cut faces with tree rings
+                love.graphics.setColor(0.72, 0.58, 0.36, 1.0)
+                love.graphics.ellipse("fill", -hw, 0, 5, hh * 0.85)
+                love.graphics.setColor(0.55, 0.38, 0.22, 1.0)
+                love.graphics.ellipse("fill", -hw, 0, 3, hh * 0.55)
+                love.graphics.setColor(0.72, 0.58, 0.36, 1.0)
+                love.graphics.ellipse("fill", hw, 0, 5, hh * 0.85)
+                love.graphics.setColor(0.55, 0.38, 0.22, 1.0)
+                love.graphics.ellipse("fill", hw, 0, 3, hh * 0.55)
+                love.graphics.setLineWidth(1)
+                love.graphics.pop()
+            elseif e.isBranch then
+                -- Branch rendering handled by Trees.draw in pure black like boundaries
             else
                 love.graphics.polygon("fill", e.body:getWorldPoints(e.shape:getPoints()))
             end

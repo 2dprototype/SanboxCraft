@@ -10,6 +10,7 @@ local Whale = require("whale")
 local b2debugDraw = require("b2debugDraw")
 local Vegetation = require("vegetation")
 local Fire = require("fire")
+local Trees = require("trees")
 
 local game = { debugMode = false, state = "playing" }
 local debugDrawEnabled = false
@@ -19,7 +20,8 @@ local cameraInstructions = {
     "F5: Toggle Debug Mode", "SPACE: Grab/Release Object",
     "E: Grab Enemy", "SHIFT: Connect two objects & detach",
     "G/T/N/R: Grenade/TNT/Nuke/Radium",
-    "F: Put / Intensify Fire"
+    "F: Put / Intensify Fire",
+    "Z: Slice / C: Chop Tree"
 }
 
 function love.load()
@@ -121,6 +123,16 @@ function love.load()
     Vegetation.init()
     if shelf1 and shelf1.body then Vegetation.populateBody(shelf1.body, 1.0) end
     
+    -- Initialize Rainforest Trees
+    Trees.init()
+    -- Trees.create(-530, 256, 1.25)
+    -- Trees.create(-440, 256, 1.15)
+    -- Trees.create(180, 495, 1.40)
+    Trees.create(440, 495, 1.30)
+    -- Trees.create(-720, 600, 1.20)
+    -- Trees.create(-1280, 815, 1.45)
+    -- Trees.create(-1580, 1000, 1.25)
+    
     -- Create water areas
     Water.createArea(-1880, 850, 190, 150, 0.8, 0.6, "basic") 
     Water.createArea(-1880, 1050, 790, 550, 1.4, 1.2, "deep") 
@@ -160,6 +172,7 @@ function love.update(dt)
     
     WorldManager.world:update(physicsDt)
     Entities.update(physicsDt)
+    Trees.update(physicsDt, Entities.list, Vegetation.list)
     Whale.update(physicsDt, Entities.player, Entities.list)
     Vegetation.update(physicsDt, Entities.list)
     Fire.update(physicsDt, Entities.list, Vegetation.list)
@@ -197,11 +210,13 @@ function love.draw()
         local viewHeight = height / Camera.scale
         
         b2debugDraw(WorldManager.world, topLeftX, topLeftY, viewWidth, viewHeight)
+        Trees.draw()
         Vegetation.draw()
         Fire.draw()
         EffectsSystem.draw()
         Water.draw()
     else
+        Trees.draw()
         Entities.draw()
         RopeSystem.drawAll(game.debugMode)
         Vegetation.draw()
@@ -423,9 +438,16 @@ function love.keypressed(key)
         end
     elseif key == "e" then
         Entities.grab(true)
+    elseif key == "c" then
+        local mx, my = Camera:screenToWorld(love.mouse.getPosition())
+        Trees.chopAt(mx, my, Entities.player)
     elseif key == "z" then
         local player = Entities.player
         if player then
+            if player.body and not player.body:isDestroyed() then
+                local px, py = player.body:getPosition()
+                Trees.sliceAt(px, py, 75)
+            end
             WorldManager.sliceBoundaryAtPlayer(player)
         end
     elseif key == "m" then
@@ -608,6 +630,7 @@ function drawUI()
         local vegStatus = Vegetation.isDestroyed() and "DESTROYED" or (#Vegetation.list .. " tufts")
         love.graphics.print("Vegetation: " .. vegStatus, 10, 190)
         love.graphics.print("Active Fires: " .. #Fire.list, 10, 210)
+        love.graphics.print("Trees: " .. #Trees.list .. " standing", 10, 230)
     end
     
     love.graphics.print("Controls:", love.graphics.getWidth() - 220, 10)

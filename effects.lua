@@ -197,6 +197,18 @@ function EffectsSystem.draw()
         elseif p.type == "steam" then
             local shade = 0.85 + math.random() * 0.15
             love.graphics.setColor(shade, shade, shade, alpha * 0.4)
+        elseif p.type == "woodChip" then
+            local r = 0.55 + math.random() * 0.15
+            local g = 0.38 + math.random() * 0.10
+            local b = 0.18
+            love.graphics.setColor(r, g, b, alpha * 0.95)
+            love.graphics.rectangle("fill", p.x - p.size/2, p.y - p.size/2, p.size * 1.5, p.size * 0.8)
+        elseif p.type == "leaf" then
+            local r = 0.18 + math.random() * 0.12
+            local g = 0.52 + math.random() * 0.18
+            local b = 0.16
+            love.graphics.setColor(r, g, b, alpha * 0.9)
+            love.graphics.circle("fill", p.x, p.y, p.size)
         elseif p.type == "water" then
             local blue = 0.5 + math.random() * 0.5
             love.graphics.setColor(0.2, 0.5, blue, alpha * 0.8)
