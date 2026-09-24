@@ -121,7 +121,7 @@ function love.load()
     
     -- Initialize vegetation storage
     Vegetation.init()
-    if shelf1 and shelf1.body then Vegetation.populateBody(shelf1.body, 1.0) end
+    if shelf1 and shelf1.body then Vegetation.populateBody(shelf1.body, 1.0, true) end
     
     -- Initialize Rainforest Trees
     Trees.init()
@@ -562,7 +562,7 @@ function love.keypressed(key)
 
                         -- If valid, add the grass to the body dynamically
                         if isValidTarget then
-                            Vegetation.populateBody(otherBody, 1.0)
+                            Vegetation.populateBody(otherBody, 1.0, true)
                             addedToAny = true
                         end
                     end
@@ -573,7 +573,7 @@ function love.keypressed(key)
         if not addedToAny then
             print("No valid colliding object found. Grass only grows on boxes, bounds, balls, and bombs.")
         else
-            print("Grass added to surface.")
+            print("Grass with cherry flowers added to surface.")
         end
         
     elseif key == "lshift" then

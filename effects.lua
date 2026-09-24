@@ -209,6 +209,12 @@ function EffectsSystem.draw()
             local b = 0.16
             love.graphics.setColor(r, g, b, alpha * 0.9)
             love.graphics.circle("fill", p.x, p.y, p.size)
+        elseif p.type == "cherryPetal" then
+            local r = 0.98 + math.random() * 0.02
+            local g = 0.62 + math.random() * 0.15
+            local b = 0.74 + math.random() * 0.10
+            love.graphics.setColor(r, g, b, alpha * 0.95)
+            love.graphics.ellipse("fill", p.x, p.y, (p.size or 2.5) * 1.4, (p.size or 2.5) * 0.8)
         elseif p.type == "water" then
             local blue = 0.5 + math.random() * 0.5
             love.graphics.setColor(0.2, 0.5, blue, alpha * 0.8)
