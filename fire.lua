@@ -71,7 +71,8 @@ local function createInvisibleCircleBody(x, y, radius, vx, vy)
     if not WorldManager or not WorldManager.world then return nil, nil, nil end
 
     local body = love.physics.newBody(WorldManager.world, x, y, "dynamic")
-    local shape = love.physics.newCircleShape(radius)
+    -- local shape = love.physics.newCircleShape(radius)
+    local shape = love.physics.newCircleShape(5)
     local fixture = love.physics.newFixture(body, shape, 0.8)
     fixture:setFriction(0.5)
     fixture:setRestitution(0.25)

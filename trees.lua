@@ -154,17 +154,17 @@ local function createBranchSegment(tree, parent, startX, startY, angle, length, 
     -- (2) Fillet cap circles. Start cap is SKIPPED for the base trunk so the
     --     bottom edge is flat (this also lets the extension blend cleanly
     --     with the ground).
-    if not isBaseTrunk then
-        local capStartShape = love.physics.newCircleShape(-hl, 0, hw1)
-        local capStartFix = love.physics.newFixture(body, capStartShape, density)
-        capStartFix:setFriction(0.85); capStartFix:setRestitution(0.05)
-        table.insert(allFixtures, capStartFix)
-    end
+    -- if not isBaseTrunk then
+        -- local capStartShape = love.physics.newCircleShape(-hl, 0, hw1)
+        -- local capStartFix = love.physics.newFixture(body, capStartShape, density)
+        -- capStartFix:setFriction(0.85); capStartFix:setRestitution(0.05)
+        -- table.insert(allFixtures, capStartFix)
+    -- end
 
-    local capEndShape = love.physics.newCircleShape(hl, 0, hw2)
-    local capEndFix = love.physics.newFixture(body, capEndShape, density)
-    capEndFix:setFriction(0.85); capEndFix:setRestitution(0.05)
-    table.insert(allFixtures, capEndFix)
+    -- local capEndShape = love.physics.newCircleShape(hl, 0, hw2)
+    -- local capEndFix = love.physics.newFixture(body, capEndShape, density)
+    -- capEndFix:setFriction(0.85); capEndFix:setRestitution(0.05)
+    -- table.insert(allFixtures, capEndFix)
 
     -- (3) Twig forks
     local twigForks = generateTwigForks(tree.scale, w2)
@@ -184,10 +184,10 @@ local function createBranchSegment(tree, parent, startX, startY, angle, length, 
         twigFix:setFriction(0.85); twigFix:setRestitution(0.05)
         table.insert(allFixtures, twigFix)
 
-        local tipShape = love.physics.newCircleShape(ex, ey, fork.w2 * 0.5)
-        local tipFix = love.physics.newFixture(body, tipShape, twigDensity)
-        tipFix:setFriction(0.85); tipFix:setRestitution(0.05)
-        table.insert(allFixtures, tipFix)
+        -- local tipShape = love.physics.newCircleShape(ex, ey, fork.w2 * 0.5)
+        -- local tipFix = love.physics.newFixture(body, tipShape, twigDensity)
+        -- tipFix:setFriction(0.85); tipFix:setRestitution(0.05)
+        -- table.insert(allFixtures, tipFix)
     end
 
     -- -----------------------------------------------------------------
@@ -396,6 +396,11 @@ local function severBranchRecursive(branch)
             branch.joint = nil
         end
         branch.body:setAwake(true)
+        
+        -- Apply normal physical damping so the separate body settles realistically
+        branch.body:setLinearDamping(0.8)
+        branch.body:setAngularDamping(1.5)
+        
         if branch.entity then
             branch.entity.isBranch = true
             branch.entity.isSeveredBranch = true
@@ -557,10 +562,10 @@ function Trees.draw()
                 love.graphics.polygon("fill", branch.body:getWorldPoints(branch.shape:getPoints()))
 
                 -- Start fillet cap (skipped for base trunk so bottom is flat)
-                if not branch.isBaseTrunk then
-                    local startX, startY = branch.body:getWorldPoint(-hl, 0)
-                    love.graphics.circle("fill", startX, startY, hw1)
-                end
+                -- if not branch.isBaseTrunk then
+                    -- local startX, startY = branch.body:getWorldPoint(-hl, 0)
+                    -- love.graphics.circle("fill", startX, startY, hw1)
+                -- end
 
                 -- End fillet cap
                 local endX, endY = branch.body:getWorldPoint(hl, 0)

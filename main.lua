@@ -118,6 +118,10 @@ function love.load()
     -- edge
     WorldManager.createBoundary(-1885, -195, 10, 2000, 0)
     WorldManager.createBoundary(-390, -1200, 3000, 10, 0)
+    WorldManager.createBoundary(1105, -195, 10, 2000, 0)
+    WorldManager.createBoundary(1105, 1305, 10, 600, 0)
+    WorldManager.createBoundary(1105, 905, 10, 200, 0)
+    WorldManager.createBoundary(510, 1605, 1200, 10, 0)
     
     -- Initialize vegetation storage
     Vegetation.init()
@@ -130,6 +134,7 @@ function love.load()
     -- Trees.create(180, 495, 1.40)
     Trees.create(440, 495, 1.30)
     -- Trees.create(-720, 600, 1.20)
+    -- Trees.create(-1280, 815, 1.45)
     -- Trees.create(-1280, 815, 1.45)
     -- Trees.create(-1580, 1000, 1.25)
     
@@ -619,17 +624,20 @@ function drawUI()
         love.graphics.print("Ropes Attached: " .. #(p.ropeIds or {}) .. "/2", 10, 100)
     end
     
+    local energyKJ = Entities.totalExplosionEnergyKJ or 0
+    love.graphics.print("Total Explosion Energy: " .. energyKJ .. " kJ", 10, 120)
+
     if game.debugMode then
         love.graphics.setColor(1, 0, 0)
-        love.graphics.print("DEBUG MODE ACTIVE", 10, 130)
+        love.graphics.print("DEBUG MODE ACTIVE", 10, 145)
         love.graphics.setColor(1, 1, 1)
         local count = 0 for _ in pairs(RopeSystem.collection) do count = count + 1 end
-        love.graphics.print("Active Ropes: " .. count, 10, 150)
-        love.graphics.print("Total Entities: " .. #Entities.list, 10, 170)
+        love.graphics.print("Active Ropes: " .. count, 10, 165)
+        love.graphics.print("Total Entities: " .. #Entities.list, 10, 185)
         local vegStatus = Vegetation.isDestroyed() and "DESTROYED" or (#Vegetation.list .. " tufts")
-        love.graphics.print("Vegetation: " .. vegStatus, 10, 190)
-        love.graphics.print("Active Fires: " .. #Fire.list, 10, 210)
-        love.graphics.print("Trees: " .. #Trees.list .. " standing", 10, 230)
+        love.graphics.print("Vegetation: " .. vegStatus, 10, 205)
+        love.graphics.print("Active Fires: " .. #Fire.list, 10, 225)
+        love.graphics.print("Trees: " .. #Trees.list .. " standing", 10, 245)
     end
     
     love.graphics.print("Controls:", love.graphics.getWidth() - 220, 10)

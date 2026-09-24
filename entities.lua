@@ -621,8 +621,12 @@ function Entities.explode(e)
     if not e or not e.body or e.body:isDestroyed() then return end
     local cx, cy = e.body:getPosition()
     local radius = e.explosionRadius
-    local maxDamage = e.explosionDamage
-    local maxForce = e.explosionForce
+    local maxDamage = e.explosionDamage or 0
+    local maxForce = e.explosionForce or 0
+
+    -- Accumulate total explosion energy released in kJ
+    local energyKJ = math.floor((maxDamage * 5) + (maxForce * 10))
+    Entities.totalExplosionEnergyKJ = (Entities.totalExplosionEnergyKJ or 0) + energyKJ
 
     local isNuke = (e.type == "nuke")
     local isRadium = (e.type == "radium")
