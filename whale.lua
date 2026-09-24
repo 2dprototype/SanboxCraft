@@ -666,6 +666,10 @@ function Whale.destroy(whale)
     
     local wx, wy = whale.body:getPosition()
     require("water").createSplash(wx, wy, 200)
+    local okFire, Fire = pcall(require, "fire")
+    if okFire and Fire and Fire.onBodyDestroyedOrSplit and not whale.body:isDestroyed() then
+        Fire.onBodyDestroyedOrSplit(whale.body)
+    end
     whale.body:destroy()
     
     for i, w in ipairs(Whale.whales) do 

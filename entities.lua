@@ -527,6 +527,11 @@ end
 function Entities.destroy(e)
     if not e or not e.body or e.body:isDestroyed() then return end
     
+    local okFire, Fire = pcall(require, "fire")
+    if okFire and Fire and Fire.onBodyDestroyedOrSplit then
+        Fire.onBodyDestroyedOrSplit(e.body)
+    end
+
     RopeSystem.destroyAllForObject(e)
     if e.type == "box" then 
         Entities.sliceBox(e) 
@@ -746,6 +751,12 @@ function Entities.explode(e)
         if a.other.body and not a.other.body:isDestroyed() then
             a.other.body:applyLinearImpulse(fx, fy, a.ox, a.oy)
         end
+    end
+
+    -- Blast free-floating fire circles outward
+    local okFire, Fire = pcall(require, "fire")
+    if okFire and Fire and Fire.applyImpulseInRadius then
+        Fire.applyImpulseInRadius(cx, cy, radius, maxForce * (0.5 + intensity))
     end
 
     -- Apply damage
@@ -1010,6 +1021,11 @@ end
 function Entities.sliceBox(box)
     if not box or box.type ~= "box" then return end
     
+    local okFire, Fire = pcall(require, "fire")
+    if okFire and Fire and Fire.onBodyDestroyedOrSplit and box.body and not box.body:isDestroyed() then
+        Fire.onBodyDestroyedOrSplit(box.body)
+    end
+
     local currentDepth = box.sliceDepth or 0
     if currentDepth >= 10 then return end
     

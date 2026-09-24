@@ -366,6 +366,10 @@ function WorldManager.removeBoundary(boundary)
             break
         end
     end
+    local okFire, Fire = pcall(require, "fire")
+    if okFire and Fire and Fire.onBodyDestroyedOrSplit and boundary.body and not boundary.body:isDestroyed() then
+        Fire.onBodyDestroyedOrSplit(boundary.body)
+    end
     if boundary.body and not boundary.body:isDestroyed() then
         boundary.body:destroy()
     end

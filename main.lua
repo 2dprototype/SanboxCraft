@@ -210,7 +210,6 @@ function love.draw()
         local viewHeight = height / Camera.scale
         
         b2debugDraw(WorldManager.world, topLeftX, topLeftY, viewWidth, viewHeight)
-        Trees.draw()
         Vegetation.draw()
         Fire.draw()
         EffectsSystem.draw()
@@ -220,11 +219,11 @@ function love.draw()
         Entities.draw()
         RopeSystem.drawAll(game.debugMode)
         Vegetation.draw()
+        Whale.draw(game.debugMode)
+        WorldManager.drawBoundaries()
         Fire.draw()
         EffectsSystem.draw()
-        Whale.draw(game.debugMode)
         Water.draw()
-        WorldManager.drawBoundaries()
     end
     
     love.graphics.setFont(oldFont)
